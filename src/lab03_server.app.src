@@ -1,0 +1,14 @@
+{application, lab03_server,
+ [
+  {description, "An Erlang lab03_server library"},
+  {vsn, "1"},
+  {modules, [
+             lab03_server
+            ]},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib
+                 ]},
+  {env, []}
+ ]}.
