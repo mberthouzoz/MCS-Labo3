@@ -53,8 +53,10 @@ server(Port) ->
 -spec accept(LSocket) -> no_return() when
   LSocket :: inet:socket().
 accept(LSocket) ->
+  io:format("accept~n"),
   {ok, Socket} = gen_tcp:accept(LSocket), % WARNING Blocking!
-  loop(Socket),
+  Pid = spawn_link(fun() -> loop(Socket) end),
+  gen_tcp:controlling_process(Socket, Pid),
   accept(LSocket).
 
 parser(Bin) ->
@@ -67,6 +69,7 @@ parser(Bin) ->
 -spec loop(Socket) -> ok when
   Socket :: inet:socket().
 loop(Socket) ->
+  io:format("loop~n"),
   receive
     {tcp, Socket, Bin} ->
       gen_tcp:send(Socket, parser(Bin)),
@@ -78,4 +81,4 @@ loop(Socket) ->
       exit({loop_unexpected_msg, Any})
   end.
 
-% end module %
+% end module
