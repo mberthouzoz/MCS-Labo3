@@ -13,7 +13,6 @@
 %% @doc Start the echo server.
 -spec start_link() -> pid().
 start_link() ->
-  %spawn_link(fun() -> server(-1) end). % <= Try this with the dialyzer!
   spawn_link(fun() -> server(?PORT) end).
 
 %% Stop the echo server.
@@ -58,16 +57,25 @@ accept(LSocket) ->
   loop(Socket),
   accept(LSocket).
 
+parser(Bin) ->
+  case Bin of
+    <<"salut">> -> "Bob";
+    <<"hello">> -> "Alice";
+    _ -> "Boooooooooo"
+  end.
+
 -spec loop(Socket) -> ok when
   Socket :: inet:socket().
 loop(Socket) ->
   receive
     {tcp, Socket, Bin} ->
-      gen_tcp:send(Socket, Bin),
+      gen_tcp:send(Socket, parser(Bin)),
+      %gen_tcp:send(Socket, Bin),
       loop(Socket);
     {tcp_closed, Socket} ->
       ?LOG("Server: peer socket closed~n");
     Any ->
       exit({loop_unexpected_msg, Any})
   end.
+
 % end module %
