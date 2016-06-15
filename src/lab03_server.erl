@@ -59,26 +59,77 @@ accept(LSocket) ->
   gen_tcp:controlling_process(Socket, Pid),
   accept(LSocket).
 
-parser(Bin) ->
-  case Bin of
-    <<"salut">> -> "Bob";
-    <<"hello">> -> "Alice";
-    _ -> "Boooooooooo"
-  end.
+%parser(Bin) ->
+%  case Bin of
+%    <<"subscribe:", Rest/binary>> ->
+%      io:format("Rest [~s]~n", [Rest]);
+%
+%    <<"hello">> -> "Alice\n";
+%    _ -> "Unexpected msg \n"
+%  end.
 
 -spec loop(Socket) -> ok when
   Socket :: inet:socket().
 loop(Socket) ->
   io:format("loop~n"),
+  receive_line(Socket).
+  %receive
+  %  {tcp, Socket, Bin} ->
+  %    gen_tcp:send(Socket, parser(Bin)),
+  %    %gen_tcp:send(Socket, Bin),
+  %    loop(Socket);
+  %  {tcp_closed, Socket} ->
+  %    ?LOG("Server: peer socket closed~n");
+  %  Any ->
+  %    exit({loop_unexpected_msg, Any})
+  %end.
+
+% on dédie la tache de recevoir une ligne
+receive_line(Socket) ->
+  io:format("start receive_line~n"),
+  receive_line(Socket, []).
+
+% une ligne est complète uniquement lorsque le delimiteur est rencontré (\n\n)
+receive_line(Socket, SoFar) ->
+  io:format("receive_line~n"),
   receive
     {tcp, Socket, Bin} ->
-      gen_tcp:send(Socket, parser(Bin)),
-      %gen_tcp:send(Socket, Bin),
-      loop(Socket);
+      % good one, keep this for lab
+      % case binary:split(Bin, [<<"\n\n">>]) of
+      % for testing with telnet...
+      case binary:split(Bin, [<<"::">>]) of
+        % "\n\n" trouvé
+        [Token, Rest] ->
+          io:format("found~n"),
+          % on gère la ligne trouvée et on continue avec le reste
+          parse_line(Socket, Token),
+          receive_line(Socket,Rest);
+        [Bin] ->
+          % si le délimiteur n'est pas trouvé, on continue la reception jusqu'a en trouver un
+          io:format("not found~n"),
+          receive_line(Socket, [Bin|SoFar])
+      end;
     {tcp_closed, Socket} ->
       ?LOG("Server: peer socket closed~n");
     Any ->
-      exit({loop_unexpected_msg, Any})
+      exit({unexpected_msg, Any})
   end.
 
+% Maintenant qu'on a une ligne, on peut la parse
+parse_line(Socket, Line) ->
+  case Line of
+    <<"status">> ->
+      io:format("parsing status required~n");
+    <<"topic: ", Rest/binary>> ->
+      io:format("parsing topic [~s]~n", [Rest]);
+    <<"subscribe: ", Rest/binary>> ->
+      io:format("parsing subscribe rest [~s]~n", [Rest]);
+
+    
+    % testing things
+    <<"hello">> ->
+      gen_tcp:send(Socket, <<"Alice\n">>);
+    _ ->
+      gen_tcp:send(Socket, <<"Unexpected msg \n">>)
+  end.
 % end module
