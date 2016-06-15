@@ -56,6 +56,8 @@ accept(LSocket) ->
   io:format("accept~n"),
   {ok, Socket} = gen_tcp:accept(LSocket), % WARNING Blocking!
   Pid = spawn_link(fun() -> loop(Socket) end),
+  % TODO: envoyer message au client (client_id: <client id>) pour le moment client_id == Pid
+  gen_tcp:send(Socket, list_to_binary([<<"client_id: ">>] ++ pid_to_list(Pid))),
   gen_tcp:controlling_process(Socket, Pid),
   accept(LSocket).
 
@@ -94,11 +96,11 @@ receive_line(Socket, SoFar) ->
   io:format("receive_line~n"),
   receive
     {tcp, Socket, Bin} ->
-      % good one, keep this for lab
+      % TODO: keep this one for the lab
       % case binary:split(Bin, [<<"\n\n">>]) of
       % for testing with telnet...
-      case binary:split(Bin, [<<"::">>]) of
-        % "\n\n" trouvé
+      case binary:split(Bin, [<<"!!">>]) of
+        % délimiteur "\n\n" trouvé
         [Token, Rest] ->
           io:format("found~n"),
           % on gère la ligne trouvée et on continue avec le reste
@@ -107,7 +109,7 @@ receive_line(Socket, SoFar) ->
         [Bin] ->
           % si le délimiteur n'est pas trouvé, on continue la reception jusqu'a en trouver un
           io:format("not found~n"),
-          receive_line(Socket, [Bin|SoFar])
+          receive_line(Socket, [SoFar|Bin]) % y a plus optimisé ?
       end;
     {tcp_closed, Socket} ->
       ?LOG("Server: peer socket closed~n");
@@ -120,16 +122,34 @@ parse_line(Socket, Line) ->
   case Line of
     <<"status">> ->
       io:format("parsing status required~n");
-    <<"topic: ", Rest/binary>> ->
-      io:format("parsing topic [~s]~n", [Rest]);
-    <<"subscribe: ", Rest/binary>> ->
-      io:format("parsing subscribe rest [~s]~n", [Rest]);
+      % TODO: send client's status
 
-    
+    <<"topic: ", Rest/binary>> ->
+      io:format("parsing topic [~s]~n", [Rest]),
+      %TODO remplacer '!' par le vrai délimiteur '\n' + controle si on trouve bien le delimiter...
+      [Topic, Message] = binary:split(Rest, [<<"!body: ">>]),
+      io:format("topic : ~s~n", [Topic]),
+      io:format("body : ~s~n", [Message]),
+      case Topic of
+        <<"system">> ->
+          gen_tcp:send(Socket, <<"error: system is a reserved topic">>);
+        _ ->
+          % TODO: créer le topic si besoin + forwarding aux autres clients
+          % on envoi la quittance au client
+          Response = list_to_binary(<<"accepted ">> ++ Topic),
+          gen_tcp:send(Socket, Response)
+      end;
+    <<"subscribe: ", Rest/binary>> ->
+      io:format("parsing subscribe rest [~s]~n", [Rest]),
+      Topic_list = binary:split(Rest, <<",">>, [global]);
+      % TODO: subscription_handler
+
+
     % testing things
     <<"hello">> ->
       gen_tcp:send(Socket, <<"Alice\n">>);
     _ ->
-      gen_tcp:send(Socket, <<"Unexpected msg \n">>)
+      gen_tcp:send(Socket, <<"Syntax error \n">>)
   end.
+
 % end module
